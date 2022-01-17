@@ -1,11 +1,16 @@
 """Simple script to install VS Code extensions."""
 
 import argparse
+import datetime
 import logging
 import subprocess
 import re
+import shutil
 import sys
+import time
 import urllib.request
+
+from urllib.error import HTTPError
 
 from typing import List
 
@@ -70,15 +75,56 @@ def install(extensions: List[str], upstream: str, insiders: bool = False):
         (\.(?P<extension>[a-zA-Z0-9_-]+))
         (-(?P<version>[0-9\.]+))
     ''', re.VERBOSE)
-    for entry in extensions:
+
+    retry = False
+    while extensions:
+        entry = extensions[0]
         extension = prog.match(entry).groupdict()
         url = URLS[upstream].format(**extension)
         logging.info(f'Downloading {extension} from {upstream}')
         vsix = f'{entry}.vsix'
-        urllib.request.urlretrieve(url, vsix)
-        vscode = 'code-insiders' if insiders else 'code'
-        logging.info(f'Installing {extension} using VS {vscode}')
-        subprocess.run([vscode, '--install-extension', vsix])
+        try:
+            req = urllib.request.Request(url, headers={
+                'User-Agent': 'python-requests/2.22.0',
+                'Accept-Encoding': 'gzip, deflate',
+                'Accept': '*/*',
+                'Connection': 'keep-alive',
+            })
+
+            with urllib.request.urlopen(req) as res, open(vsix, 'wb') as vsixf:
+                shutil.copyfileobj(res, vsixf)
+                limit = int(res.headers.get('X-RateLimit-Limit', '-1'))
+                remaining = int(res.headers.get('X-RateLimit-Remaining', '-1'))
+                reset = int(res.headers.get('X-RateLimit-Reset', '-1'))
+
+            vscode = 'code-insiders' if insiders else 'code'
+            logging.info(f'Installing {extension} using VS {vscode}')
+            subprocess.run([vscode, '--install-extension', vsix])
+            extensions.pop(0)
+            retry = False
+        except HTTPError as exc:
+            if exc.code != 429:
+                raise exc
+            if retry:
+                logging.error('Rate limited but already retried, exiting')
+                raise SystemExit
+
+            logging.error('Rate limited, will retry')
+            limit = int(exc.headers.get('X-RateLimit-Limit', '-1'))
+            remaining = int(exc.headers.get('X-RateLimit-Remaining', '-1'))
+            reset = int(exc.headers.get('X-RateLimit-Reset', '-1'))
+            retry = True
+
+        # Sleep if rate limited
+        if limit != -1:
+            reset_time = datetime.datetime.fromtimestamp(reset)
+            logging.info(
+                'Rate limited, limit: %d, remaining: %d (reset time: %s)',
+                limit,
+                remaining,
+                reset_time,
+            )
+            time.sleep((reset_time - datetime.datetime.now()).seconds)
 
     logging.info('All extensions downloaded and installed')
 
