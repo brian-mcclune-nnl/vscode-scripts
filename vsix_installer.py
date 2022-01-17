@@ -2,14 +2,16 @@
 
 import argparse
 import logging
+import subprocess
 import re
 import sys
+import urllib.request
 
 from typing import List
 
 URLS = {
     'marketplace': 'https://marketplace.visualstudio.com/_apis/public/gallery/publishers/{publisher}/vsextensions/{extension}/{version}/vspackage',
-    'local': 'http://localhost:8000/extensions/{publisher}.{extension}-{version}.vsix',
+    'local': 'http://localhost:8000/{publisher}.{extension}-{version}.vsix',
 }
 
 
@@ -46,8 +48,22 @@ def get_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def install(extensions: List[str], insiders: bool = False):
-    """Install VSIX `extensions` into VS Code."""
+def install(extensions: List[str], upstream: str, insiders: bool = False):
+    """Install VSIX `extensions` into VS Code.
+
+    Arguments:
+        extensions: List of extensions to install. The naming format is
+            ``publisher.extension-version``.
+        upstream: Templated URL string that is the upstream to download
+            extension from. Template variables are ``publisher``,
+            ``extension``, and ``version``.
+        insiders: ``True`` if installer should install to VS Code Insiders
+            rather than VS Code.
+    """
+
+    if not extensions:
+        logging.info('No extensions to install, exiting')
+        return
 
     prog = re.compile(r'''
         (?P<publisher>[a-zA-Z0-9_-]+)
@@ -56,7 +72,15 @@ def install(extensions: List[str], insiders: bool = False):
     ''', re.VERBOSE)
     for entry in extensions:
         extension = prog.match(entry).groupdict()
-        logging.info(f'Found extension: {extension}')
+        url = URLS[upstream].format(**extension)
+        logging.info(f'Downloading {extension} from {upstream}')
+        vsix = f'{entry}.vsix'
+        urllib.request.urlretrieve(url, vsix)
+        vscode = 'code-insiders' if insiders else 'code'
+        logging.info(f'Installing {extension} using VS {vscode}')
+        subprocess.run([vscode, '--install-extension', vsix])
+
+    logging.info('All extensions downloaded and installed')
 
 
 def main(argv: List[str] = sys.argv[1:]) -> int:
@@ -70,7 +94,7 @@ def main(argv: List[str] = sys.argv[1:]) -> int:
         if args.file:
             with open(args.file) as args_file:
                 extensions.extend([line.rstrip() for line in args_file])
-        install(extensions, args.insiders)
+        install(extensions, args.upstream, args.insiders)
     except Exception:
         logging.exception('Execution error:')
         return 1
