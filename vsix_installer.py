@@ -3,9 +3,10 @@
 import argparse
 import datetime
 import logging
-import subprocess
+import os
 import re
 import shutil
+import subprocess
 import sys
 import time
 import urllib.request
@@ -100,6 +101,7 @@ def install(extensions: List[str], upstream: str, insiders: bool = False):
             vscode = 'code-insiders' if insiders else 'code'
             logging.info(f'Installing {extension} using VS {vscode}')
             subprocess.run([vscode, '--install-extension', vsix])
+            os.remove(vsix)
             extensions.pop(0)
             retry = False
         except HTTPError as exc:
