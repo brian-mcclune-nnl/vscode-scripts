@@ -16,6 +16,7 @@ from urllib.error import HTTPError
 from typing import List
 
 URLS = {
+    # flake8: noqa
     'marketplace': 'https://marketplace.visualstudio.com/_apis/public/gallery/publishers/{publisher}/vsextensions/{extension}/{version}/vspackage',
     'local': 'http://localhost:8000/{publisher}.{extension}-{version}.vsix',
 }
