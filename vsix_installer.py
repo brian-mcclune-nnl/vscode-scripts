@@ -18,6 +18,7 @@ from typing import List
 URLS = {
     # flake8: noqa
     'marketplace': 'https://marketplace.visualstudio.com/_apis/public/gallery/publishers/{publisher}/vsextensions/{extension}/{version}/vspackage',
+    'publisher': 'https://{publisher}.gallery.vsassets.io/_apis/public/gallery/publisher/{publisher}/extension/{extension}/{version}/assetbyname/Microsoft.VisualStudio.Services.VSIXPackage',
     'local': 'http://localhost:8000/{publisher}.{extension}-{version}.vsix',
 }
 
@@ -42,9 +43,14 @@ def get_parser() -> argparse.ArgumentParser:
         help='Install to VS Code Insiders rather than VS Code',
     )
     parser.add_argument(
+        '--download-only',
+        action='store_true',
+        help='Download extensions but do not install them',
+    )
+    parser.add_argument(
         '--upstream',
-        choices=['local', 'marketplace'],
-        default='marketplace',
+        choices=['local', 'marketplace', 'publisher'],
+        default='publisher',
         help='Upstream repository to download VSIX extensions from',
     )
     parser.add_argument(
@@ -55,7 +61,12 @@ def get_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def install(extensions: List[str], upstream: str, insiders: bool = False):
+def install(
+    extensions: List[str],
+    upstream: str,
+    download_only: bool = False,
+    insiders: bool = False,
+):
     """Install VSIX `extensions` into VS Code.
 
     Arguments:
@@ -64,6 +75,8 @@ def install(extensions: List[str], upstream: str, insiders: bool = False):
         upstream: Templated URL string that is the upstream to download
             extension from. Template variables are ``publisher``,
             ``extension``, and ``version``.
+        download_only: ``True`` if packages should be downloaded but not
+            installed.
         insiders: ``True`` if installer should install to VS Code Insiders
             rather than VS Code.
     """
@@ -71,6 +84,9 @@ def install(extensions: List[str], upstream: str, insiders: bool = False):
     if not extensions:
         logging.info('No extensions to install, exiting')
         return
+
+    ext_dir = f'vsix-{datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}'
+    os.makedirs(ext_dir, exist_ok=True)
 
     prog = re.compile(r'''
         (?P<publisher>[a-zA-Z0-9_-]+)
@@ -93,16 +109,21 @@ def install(extensions: List[str], upstream: str, insiders: bool = False):
                 'Connection': 'keep-alive',
             })
 
-            with urllib.request.urlopen(req) as res, open(vsix, 'wb') as vsixf:
+            dst = os.path.join(ext_dir, vsix)
+            with urllib.request.urlopen(req) as res, open(dst, 'wb') as vsixf:
                 shutil.copyfileobj(res, vsixf)
                 limit = int(res.headers.get('X-RateLimit-Limit', '-1'))
                 remaining = int(res.headers.get('X-RateLimit-Remaining', '-1'))
                 reset = int(res.headers.get('X-RateLimit-Reset', '-1'))
 
             vscode = 'code-insiders' if insiders else 'code'
-            logging.info(f'Installing {extension} using VS {vscode}')
-            subprocess.run([vscode, '--install-extension', vsix])
-            os.remove(vsix)
+            if not download_only:
+                logging.info(f'Installing {extension} using VS {vscode}')
+                subprocess.run([
+                    vscode,
+                    '--install-extension',
+                    dst,
+                ])
             extensions.pop(0)
             retry = False
         except HTTPError as exc:
@@ -129,7 +150,7 @@ def install(extensions: List[str], upstream: str, insiders: bool = False):
             )
             time.sleep((reset_time - datetime.datetime.now()).seconds)
 
-    logging.info('All extensions downloaded and installed')
+    logging.info('All extensions processed')
 
 
 def main(argv: List[str] = sys.argv[1:]) -> int:
@@ -143,7 +164,7 @@ def main(argv: List[str] = sys.argv[1:]) -> int:
         if args.file:
             with open(args.file) as args_file:
                 extensions.extend([line.rstrip() for line in args_file])
-        install(extensions, args.upstream, args.insiders)
+        install(extensions, args.upstream, args.download_only, args.insiders)
     except Exception:
         logging.exception('Execution error:')
         return 1

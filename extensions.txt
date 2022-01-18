@@ -4,6 +4,7 @@ ms-python.vscode-pylance-2022.1.1
 ms-python.python-2021.12.1559732655
 ms-toolsai.jupyter-keymap-1.0.0
 ms-toolsai.jupyter-renderers-1.0.4
+ms-toolsai.jupyter-2021.11.1001550889
 ms-toolsai.jupyter-2022.1.1001614873
 ms-vscode-remote.remote-ssh-0.70.0
 ms-vscode-remote.remote-ssh-edit-0.70.0
@@ -11,3 +12,19 @@ redhat.vscode-yaml-1.3.0
 shardulm94.trailing-spaces-0.3.1
 vscodevim.vim-1.21.10
 yzhang.markdown-all-in-one-3.4.0
+alexcvzz.vscode-sqlite-0.14.0
+dbaeumer.vscode-eslint-2.2.2
+ecmel.vscode-html-css-1.10.2
+formulahendry.code-runner-0.11.6
+goessner.mdmath-2.7.4
+golang.go-0.30.0
+hansec.fortran-ls-0.6.2
+ikuyadeu.r-2.3.6
+jakeboone02.cypher-query-language-1.0.2
+johnsoncodehk.volar-0.30.5
+krvajalm.linter-gfortran-2.6.2
+lolow.gams-0.0.1
+ms-vscode.cpptools-1.7.1
+ms-vscode.powershell-2021.12.0
+redhat.vscode-yaml-1.3.0
+sdras.night-owl-2.0.1
