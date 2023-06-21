@@ -91,7 +91,7 @@ def install(
     prog = re.compile(r'''
         (?P<publisher>[a-zA-Z0-9_-]+)
         (\.(?P<extension>[a-zA-Z0-9_-]+))
-        (-(?P<version>[0-9\.]+))
+        (@(?P<version>[0-9\.]+))
     ''', re.VERBOSE)
 
     retry = False
@@ -149,6 +149,26 @@ def install(
                 reset_time,
             )
             time.sleep((reset_time - datetime.datetime.now()).seconds)
+
+        # Get vscode-server if extension is remote-ssh
+        if extension['extension'] =='remote-ssh':
+            cproc = subprocess.run(['code.cmd', '-v'], stdout=subprocess.PIPE)
+            version_no = cproc.stdout.decode().splitlines()[0]
+            commit_id = cproc.stdout.decode().splitlines()[1]
+            url = (
+                f'https://update.code.visualstudio.com/commit:{commit_id}/'
+                'server-linux-x64/stable')
+            req = urllib.request.Request(url, headers={
+                'User-Agent': 'python-requests/2.22.0',
+                'Accept-Encoding': 'gzip, deflate',
+                'Accept': '*/*',
+                'Connection': 'keep-alive',
+            })
+
+            tgz = f'vscode-server-{version_no}.tar.gz'
+            dst = os.path.join(ext_dir, tgz)
+            with urllib.request.urlopen(req) as res, open(dst, 'wb') as tgzf:
+                shutil.copyfileobj(res, tgzf)
 
     logging.info('All extensions processed')
 
